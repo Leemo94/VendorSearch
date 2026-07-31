@@ -25,10 +25,19 @@ merchant window so you can **find an item by name** (type `ironfoe`, jump straig
 
 ## Install
 
-1. Download the latest release and extract the **`VendorSearch`** folder into your Ascension
-   client's `Interface\AddOns\` directory (the folder containing `Wow.exe` / `Interface\` — in the
-   Ascension Launcher, use *Options → Open game location*).
-2. Restart the game or type `/reload`.
+**Recommended — from Releases (cleanest):**
+
+1. Open the [**Releases**](https://github.com/Leemo94/VendorSearch/releases/latest) page and, under
+   **Assets**, download `VendorSearch-x.y.z.zip`.
+2. Unzip it and drop the **`VendorSearch`** folder into your Ascension client's `Interface\AddOns\`
+   directory (the folder containing `Wow.exe` / `Interface\` — in the Ascension Launcher, use
+   *Options → Open game location*).
+3. Restart the game or type `/reload`.
+
+**If you use the green “Code → Download ZIP” button instead:** it gives you a folder named
+`VendorSearch-main`. Open it and copy the **`VendorSearch`** folder *from inside it* (not the outer
+`-main` one) into `Interface\AddOns\`. The folder sitting in `AddOns\` must be named exactly
+**`VendorSearch`**, or the game won't list the addon.
 
 ## Usage
 
