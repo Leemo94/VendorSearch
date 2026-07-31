@@ -1,0 +1,7 @@
+## Interface: 30300
+## Title: Vendor Search
+## Notes: Search vendor goods by name and filter by stat, right below the merchant window.
+## Author: Leemo94
+## Version: 1.1.0
+
+VendorSearch.lua
