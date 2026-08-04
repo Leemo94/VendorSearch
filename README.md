@@ -7,7 +7,7 @@ with three pages of stuff — are a pain to scan. Vendor Search adds a search ba
 merchant window so you can **find an item by name** (type `ironfoe`, jump straight to it) and
 **filter by stat** (tick Spell Power + Hit to see only gear with both).
 
-*No libraries, one Lua file, ~12 KB.*
+*No libraries, one Lua file, ~16 KB.*
 
 ## Features
 
@@ -17,6 +17,10 @@ merchant window so you can **find an item by name** (type `ironfoe`, jump straig
   Intellect · Spirit · Spell Power · Spell Damage · Healing · MP5 · Strength · Agility ·
   Attack Power · Armor Pen · Crit · Haste · Hit · Expertise · Spell Pen · Stamina · Resilience ·
   Defense · Dodge · Parry · Block.
+- **Armor-type filter** — Cloth · Leather · Mail · Plate. All on by default; untick the ones you
+  can't wear (a plate tank hides cloth/leather/mail clutter). Weapons, trinkets, rings, cloaks and
+  shields always show — only the four wearable armor classes are hidden. Your choice **persists**
+  across sessions (it's a standing class preference, unlike the per-vendor search + stat filters).
 - **Reads the real tooltip** — matches against the item's actual tooltip text, so procs, "Equip:"
   lines and Ascension's custom stats all count. Name + stats combine.
 - **Match counter** and an **"All items (clear stats)"** reset in the dropdown.

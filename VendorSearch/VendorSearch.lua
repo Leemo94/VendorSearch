@@ -31,7 +31,14 @@ local matchCount, totalCount = 0, 0
 local scanCache = {}            -- item link -> lowercased tooltip text
 local needRescan = false
 local rescanTries = 0
-local bar, box, dropdown, countFS
+local bar, box, dropdown, armorDropdown, countFS
+
+-- Armor-type filter: all four ON = no filtering (default). A plate tank can
+-- switch off Cloth/Leather/Mail to hide gear they can't wear. Persists across
+-- sessions in VendorSearchDB -- it's a standing class preference, unlike the
+-- per-vendor search text and stat filter (which reset when the merchant opens).
+local ARMOR_TYPES = { "Cloth", "Leather", "Mail", "Plate" }
+local armorFilter = { Cloth = true, Leather = true, Mail = true, Plate = true }
 
 -- Each stat matches if ANY of its `words` appears in an item's tooltip text.
 -- Rating stats use the "... rating" wording so they don't false-match item
@@ -68,6 +75,42 @@ local STAT_WORDS, STAT_LABELS = {}, {}
 for _, s in ipairs(STATS) do
 	STAT_WORDS[s.key] = s.words
 	STAT_LABELS[s.key] = s.label
+end
+
+-- Armor-type filter constants. Only real Armor-class pieces of these four
+-- subclasses are hideable; cloaks (universal), shields, relics, rings, trinkets,
+-- weapons and trade goods (e.g. "Linen Cloth", which is subclass "Cloth" but
+-- class "Trade Goods") are never filtered by armor type. enUS class/subclass
+-- names, consistent with the rest of this addon.
+local ARMOR_CLASS = ARMOR or "Armor"
+local ARMOR_SUBCLASS = { Cloth = true, Leather = true, Mail = true, Plate = true }
+
+local function AllArmorOn()
+	return armorFilter.Cloth and armorFilter.Leather and armorFilter.Mail and armorFilter.Plate
+end
+
+local function MatchesArmor(link)
+	if AllArmorOn() then
+		return true
+	end
+	if not link then
+		return true
+	end
+	local _, _, _, _, _, class, subclass, _, equipSlot = GetItemInfo(link)
+	if not class then
+		needRescan = true       -- not in the client cache yet; show it and re-check
+		return true
+	end
+	if class ~= ARMOR_CLASS then
+		return true             -- weapons, consumables, trade goods, etc.
+	end
+	if equipSlot == "INVTYPE_CLOAK" then
+		return true             -- everyone wears cloaks regardless of armor spec
+	end
+	if not ARMOR_SUBCLASS[subclass] then
+		return true             -- shields, relics, rings, trinkets, necks, misc
+	end
+	return armorFilter[subclass] and true or false
 end
 
 local function Print(msg)
@@ -119,6 +162,9 @@ local function MatchesFilters(index)
 		if not strfind(strlower(name), searchText, 1, true) then
 			return false
 		end
+	end
+	if not MatchesArmor(link) then
+		return false
 	end
 	if next(selectedStats) then
 		local text = TooltipTextFor(index, link)
@@ -208,7 +254,7 @@ end
 local function FilterActive()
 	return not broken
 		and MerchantFrame.selectedTab == 1
-		and (searchText ~= "" or next(selectedStats) ~= nil)
+		and (searchText ~= "" or next(selectedStats) ~= nil or not AllArmorOn())
 end
 
 local function Update_Filtered(...)
@@ -355,9 +401,59 @@ local function StatDropDown_Initialize()
 	end
 end
 
+local function ArmorSelText()
+	local on = {}
+	for _, t in ipairs(ARMOR_TYPES) do
+		if armorFilter[t] then on[#on + 1] = t end
+	end
+	local n = #on
+	if n == 4 then return "Armor: All" end
+	if n == 0 then return "|cffff4040Armor: none|r" end
+	if n == 1 then return "Armor: " .. on[1] end
+	return "Armor: " .. n .. " types"
+end
+
+local function UpdateArmorDropDownText()
+	if armorDropdown then
+		UIDropDownMenu_SetText(armorDropdown, ArmorSelText())
+	end
+end
+
+local function ToggleArmor(t)
+	armorFilter[t] = not armorFilter[t]
+	UpdateArmorDropDownText()
+	RefreshMerchant()
+end
+
+local function SetAllArmor(on)
+	for _, t in ipairs(ARMOR_TYPES) do
+		armorFilter[t] = on
+	end
+	UpdateArmorDropDownText()
+	RefreshMerchant()
+end
+
+local function ArmorDropDown_Initialize()
+	local all = UIDropDownMenu_CreateInfo()
+	all.text = "All armor types (show everything)"
+	all.notCheckable = true
+	all.func = function() SetAllArmor(true) end
+	UIDropDownMenu_AddButton(all)
+	for _, t in ipairs(ARMOR_TYPES) do
+		local info = UIDropDownMenu_CreateInfo()
+		info.text = t
+		info.value = t
+		info.isNotRadio = true
+		info.keepShownOnClick = true
+		info.checked = armorFilter[t] and true or false
+		info.func = function() ToggleArmor(t) end
+		UIDropDownMenu_AddButton(info)
+	end
+end
+
 local function CreateUI()
 	bar = CreateFrame("Frame", "VendorSearchBar", MerchantFrame)
-	bar:SetWidth(360)
+	bar:SetWidth(440)  -- fallback; auto-shrunk to hug its contents on first show
 	bar:SetHeight(34)
 	if MerchantFrameTab1 then
 		bar:SetPoint("TOPLEFT", MerchantFrameTab1, "BOTTOMLEFT", 0, -2)
@@ -403,9 +499,26 @@ local function CreateUI()
 	UIDropDownMenu_SetWidth(dropdown, 100)
 	UIDropDownMenu_SetText(dropdown, "Any stat")
 
+	armorDropdown = CreateFrame("Frame", "VendorSearchArmorDropDown", bar, "UIDropDownMenuTemplate")
+	armorDropdown:SetPoint("LEFT", dropdown, "RIGHT", -20, 0)
+	UIDropDownMenu_Initialize(armorDropdown, ArmorDropDown_Initialize)
+	UIDropDownMenu_SetWidth(armorDropdown, 84)
+	UpdateArmorDropDownText()
+
 	countFS = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-	countFS:SetPoint("RIGHT", bar, "RIGHT", -12, 0)
+	countFS:SetPoint("LEFT", armorDropdown, "RIGHT", -10, 0)  -- sit right after the armor filter, not far right
 	countFS:SetText("")
+
+	-- The dropdown widths are fixed, so once the frame is first laid out we can
+	-- shrink the bar to hug its contents rather than leaving dead space on the right.
+	bar:SetScript("OnShow", function(self)
+		if self.autoSized then return end
+		local right, left = armorDropdown:GetRight(), self:GetLeft()
+		if right and left then
+			self:SetWidth((right - left) + 52)
+			self.autoSized = true
+		end
+	end)
 end
 
 local function Install()
@@ -427,6 +540,13 @@ local function Install()
 
 	origUpdate = MerchantFrame_UpdateMerchantInfo
 	MerchantFrame_UpdateMerchantInfo = Update_Filtered
+
+	VendorSearchDB = VendorSearchDB or {}
+	VendorSearchDB.armor = VendorSearchDB.armor or {}
+	armorFilter = VendorSearchDB.armor
+	for _, t in ipairs(ARMOR_TYPES) do
+		if armorFilter[t] == nil then armorFilter[t] = true end
+	end
 
 	CreateUI()
 
@@ -453,10 +573,12 @@ SlashCmdList["VENDORSEARCH"] = function(msg)
 	local cmd = strlower(strtrim(msg or ""))
 	if cmd == "clear" then
 		Reset()
+		SetAllArmor(true)
 		RefreshMerchant()
 		Print("filters cleared.")
 	else
 		Print("type in the box under the merchant window; tick one or more stats in the dropdown (matches items with ALL of them).")
+		Print("armor filter: all types show by default; untick Cloth/Leather/Mail/Plate to hide gear you can't wear (persists).")
 		Print("commands: /vsearch clear" .. (broken and " |cffff0000(disabled by an error this session)|r" or ""))
 	end
 end
